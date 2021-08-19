@@ -1,3 +1,48 @@
+const fetch = require("node-fetch");
+
+exports.handler = async function (event, context) {
+  const CLIENT_ID = process.env["CLIENT_ID"];
+  const CLIENT_SECRET = process.env["CLIENT_SECRET"];
+  const REDIRECT_URL = process.env["REDIRECT_URL"];
+  const TOKEN_URL = process.env["TOKEN_URL"];
+
+  if (
+    CLIENT_ID == null ||
+    CLIENT_SECRET == null ||
+    REDIRECT_URL == null ||
+    TOKEN_URL == null
+  ) {
+    return {
+      statusCode: 500,
+      body: "invalid environment variables",
+    };
+  }
+
+  var code = event.queryStringParameters
+    ? event.queryStringParameters.code
+    : null;
+  if (code == null) {
+    return {
+      status: 400,
+      body: "auth code is misssing",
+    };
+  }
+
+  const tokenResponse = await fetch(TOKEN_URL, {
+    method: "post",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      client_id: CLIENT_ID,
+      client_secret: CLIENT_SECRET,
+      code: code,
+      redirect_uri: REDIRECT_URL,
+    }),
+  }).then((r) => r.json());
+
+  var response = {
+    statusCode: 200,
+    body: `
 <!DOCTYPE html>
 <html>
     <head>
@@ -59,7 +104,9 @@
                         </header>
                         <div class="row">
                             <div class="col">
-                                <input readonly></input>
+                                <input readonly value="${JSON.stringify(
+                                  tokenResponse
+                                )}"></input>
                             </div>
                         </div>
                         <footer class="is-right">
@@ -94,25 +141,17 @@
                     });
                 }
             }
-
-            function getURLParameter(sParam)
-            {
-                const sPageURL = window.location.search.substring(1);
-                const sURLVariables = sPageURL.split('&');
-                for (let i = 0; i < sURLVariables.length; i++) 
-                {
-                    const sParameterName = sURLVariables[i].split('=');
-                    if (sParameterName[0] == sParam) 
-                    {
-                        return sParameterName[1];
-                    }
-                }
-            }
             
-            document.addEventListener('DOMContentLoaded', function() { 
-                document.querySelector('input').value = getURLParameter('code')
+            document.addEventListener('DOMContentLoaded', function() {
                 localize(window.navigator.language);
             });
         </script>
     </body>
-</html>
+</html>`,
+    headers: {
+      "Content-Type": "text/html",
+    },
+  };
+
+  context.succeed(response);
+};
